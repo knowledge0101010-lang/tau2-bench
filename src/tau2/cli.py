@@ -60,6 +60,27 @@ def add_run_args(parser):
         help="The domain to run the simulation on",
     )
     parser.add_argument(
+        "--profile",
+        choices=("consumer", "enterprise"),
+        default=None,
+        help=(
+            "Edition profile. Omit to keep the standard defaults. "
+            "consumer: one low-cost Grok smoke on the mock domain. "
+            "enterprise: YAML routing, budgets, and an audit log "
+            "(--enterprise-config)."
+        ),
+    )
+    parser.add_argument(
+        "--enterprise-config",
+        type=str,
+        default=None,
+        help=(
+            "YAML config for --profile enterprise. "
+            "Ignored only when it is omitted. xAI Grok ids use the xai/ prefix, "
+            "not Groq."
+        ),
+    )
+    parser.add_argument(
         "--num-trials",
         type=int,
         default=DEFAULT_NUM_TRIALS,
@@ -725,6 +746,15 @@ def main():
     add_run_args(run_parser)
 
     def run_command(args):
+        import sys
+
+        from tau2.edition.apply import consumer_summary, prepare_edition
+        from tau2.edition.session import BudgetExceeded
+
+        edition = prepare_edition(args, sys.argv[1:])
+        if edition.consumer_banner:
+            print(edition.consumer_banner)
+
         user_persona_config = None
         if args.user_persona:
             user_persona_config = PersonaConfig.from_dict(args.user_persona)  # noqa: F841
@@ -881,7 +911,21 @@ def main():
                 enforce_communication_protocol=args.enforce_communication_protocol,
             )
 
-        return run_domain(config)
+        def _execute():
+            try:
+                return run_domain(config)
+            except BudgetExceeded as exc:
+                print(str(exc))
+                raise SystemExit(2) from exc
+
+        if edition.session is not None:
+            with edition.session:
+                result = _execute()
+        else:
+            result = _execute()
+        if edition.profile == "consumer":
+            print(consumer_summary(result))
+        return result
 
     run_parser.set_defaults(func=run_command)
 

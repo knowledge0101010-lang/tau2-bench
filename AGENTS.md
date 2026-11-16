@@ -32,6 +32,8 @@ Required keys depend on the task:
 
 Results with the Grok text defaults are not comparable to published leaderboard entries.
 
+`--profile` is optional. Omit it and the defaults above stay in force. `consumer` is a low-cost mock smoke. `enterprise` reads a YAML file for per-role routing, budgets, and a secret-free audit log. xAI (`xai/`) and Groq stay distinct. See `docs/editions.md` (English and Korean).
+
 ## Common Commands
 
 | Command | What it does | Required install |

@@ -102,6 +102,10 @@ tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 \
 
 Those `--agent-llm` and `--user-llm` values are the defaults, so the flags can be omitted. Scores from this default are not comparable to published leaderboard entries.
 
+`--profile consumer` runs that smoke with low-cost limits (mock, 1 task, 8 steps) and tells you if `XAI_API_KEY` is missing. `--profile enterprise` adds a YAML file for routing, budgets, and an audit log. With no `--profile`, nothing about the defaults changes. xAI Grok is not Groq. Short guide, English and Korean: [Editions](editions.md).
+
+`--profile consumer`는 같은 스모크를 낮은 한도로 돌리고, `XAI_API_KEY`가 없으면 이유를 알리고 멈춥니다. `--profile enterprise`는 YAML로 라우팅, 예산, 감사 로그를 켭니다. `--profile`을 생략하면 기본값은 바뀌지 않습니다. xAI Grok는 Groq가 아닙니다. [Editions](editions.md).
+
 A mock-domain smoke run (needs `XAI_API_KEY`; this repo's checks do not call the API):
 
 ```bash

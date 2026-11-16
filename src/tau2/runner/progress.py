@@ -12,6 +12,7 @@ from loguru import logger
 
 from tau2.data_model.simulation import Results, SimulationRun, TerminationReason
 from tau2.data_model.tasks import Task
+from tau2.edition.session import BudgetExceeded
 from tau2.utils.display import ConsoleDisplay, Text
 from tau2.utils.utils import get_now
 
@@ -31,8 +32,9 @@ def run_with_retry(
 ) -> SimulationRun:
     """Run a simulation function with retry logic.
 
-    Retries on any exception. If all retries are exhausted, returns a failed
-    SimulationRun with INFRASTRUCTURE_ERROR instead of raising.
+    Retries on any exception except BudgetExceeded, which stops the run.
+    If all retries are exhausted, returns a failed SimulationRun with
+    INFRASTRUCTURE_ERROR instead of raising.
 
     Args:
         run_fn: A callable that produces a SimulationRun.
@@ -89,6 +91,8 @@ def run_with_retry(
 
             return simulation
 
+        except BudgetExceeded:
+            raise
         except Exception as e:
             last_exception = e
             last_error_reason = str(e)

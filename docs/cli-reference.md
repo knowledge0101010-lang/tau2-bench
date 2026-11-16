@@ -24,6 +24,8 @@ tau2 run \
 | Option | Description |
 |--------|-------------|
 | `--domain`, `-d` | Domain to evaluate: `airline`, `retail`, `telecom`, `mock`, `banking_knowledge` |
+| `--profile` | `consumer` (low-cost Grok smoke) or `enterprise` (YAML routing and budgets). Omit to keep standard defaults. See [Editions](editions.md). |
+| `--enterprise-config` | YAML file for `--profile enterprise` |
 | `--agent-llm` | LLM model for the agent (default: `xai/grok-4.7`) |
 | `--user-llm` | LLM model for the user simulator (default: `xai/grok-4.7`) |
 | `--agent-llm-args` | JSON dict of extra args for agent LLM (e.g. `'{"temperature": 0.5}'`) |

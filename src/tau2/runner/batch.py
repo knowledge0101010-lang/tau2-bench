@@ -36,6 +36,7 @@ from tau2.data_model.simulation import (
 from tau2.data_model.tasks import Task
 from tau2.data_model.voice import SynthesisConfig, VoiceSettings
 from tau2.data_model.voice_personas import warn_if_non_official_voices
+from tau2.edition.session import BudgetExceeded
 from tau2.evaluator.evaluator import EvaluationType
 from tau2.evaluator.reviewer import check_hallucination, format_hallucination_feedback
 from tau2.metrics.agent_metrics import compute_metrics
@@ -814,6 +815,14 @@ def run_tasks(
         for future in as_completed(futures):
             result = future.result()
             simulation_results.simulations.append(result)
+    except BudgetExceeded:
+        shutdown_event.set()
+        executor.shutdown(wait=False, cancel_futures=True)
+        ConsoleDisplay.console.print(
+            "\n[bold red]Enterprise budget reached. Stopping the run.[/bold red]"
+        )
+        monitor.stop()
+        raise
     except KeyboardInterrupt:
         ConsoleDisplay.console.print(
             "\n[bold red]Ctrl+C received — cancelling remaining tasks...[/bold red]"
