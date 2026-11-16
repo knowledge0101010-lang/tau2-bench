@@ -46,7 +46,7 @@ def run_simulation(
         # Build your own instances (no registry needed):
         env = MyEnvironment()
         agent = MyAgent(tools=env.get_tools(), domain_policy=env.get_policy())
-        user = UserSimulator(llm="gpt-4.1", instructions=task.user_scenario,
+        user = UserSimulator(llm="xai/grok-4.7", instructions=task.user_scenario,
                              tools=env.get_user_tools())
         orchestrator = Orchestrator(
             domain="airline", agent=agent, user=user,

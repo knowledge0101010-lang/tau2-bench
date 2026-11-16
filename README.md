@@ -83,11 +83,11 @@ cp .env.example .env
 ### 3. Run an evaluation
 
 ```bash
-tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 \
+tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 \
   --num-trials 1 --num-tasks 5
 ```
 
-Results are saved to `data/simulations/`. Use `tau2 view` to browse them.
+Those model flags match the defaults (`XAI_API_KEY`; xAI at api.x.ai, not Groq). Results with these defaults are not comparable to published leaderboard entries. Results are saved to `data/simulations/`. Use `tau2 view` to browse them.
 
 > **Tip**: Run `tau2 intro` for an overview of available domains, commands, and examples.
 

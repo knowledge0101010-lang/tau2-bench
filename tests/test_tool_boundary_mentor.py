@@ -1871,12 +1871,108 @@ def test_mentor_model_receives_reasoning_effort(monkeypatch):
     assert result == {"agent_note": "Use exact IDs."}
     assert calls[0]["model"] == "gpt-5.5"
     assert calls[0]["reasoning_effort"] == "none"
+    assert "temperature" not in calls[0]
     assert calls[0]["max_tokens"] == mentor_module.MENTOR_JSON_MAX_TOKENS
     response_format = calls[0]["response_format"]
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["name"] == "tool_mentor_read_note"
     assert response_format["json_schema"]["strict"] is True
     assert response_format["json_schema"]["schema"]["required"] == ["agent_note"]
+
+
+def test_grok_mentor_sampling_follows_reasoning_capability():
+    provider_default = [
+        "gemini/gemini-3.5-flash",
+        "gpt-5.5",
+        "openai/gpt-5.5",
+        "xai/grok-4.7",
+        "grok-4.6",
+        "xai/grok-4.20-0309-reasoning",
+        "xai/grok-4.20-multi-agent-0309",
+        "grok-4",
+    ]
+    caller_temperature = [
+        "xai/grok-4.20-0309-non-reasoning",
+        "xai/grok-4.20-non-reasoning",
+        "grok-3",
+        "xai/grok-voice-think-fast-1.0",
+        "gpt-4.1-2025-04-14",
+    ]
+    for model in provider_default:
+        assert ToolBoundaryMentor._uses_provider_default_sampling(model), model
+    for model in caller_temperature:
+        assert not ToolBoundaryMentor._uses_provider_default_sampling(model), model
+
+    assert (
+        ToolBoundaryMentor._reasoning_effort_for_model("xai/grok-4.7", "none") is None
+    )
+    assert (
+        ToolBoundaryMentor._reasoning_effort_for_model("xai/grok-4.7", "low") == "low"
+    )
+    assert (
+        ToolBoundaryMentor._reasoning_effort_for_model("xai/grok-4.3", "none") == "none"
+    )
+    assert (
+        ToolBoundaryMentor._reasoning_effort_for_model(
+            "xai/grok-4.20-0309-non-reasoning", "high"
+        )
+        is None
+    )
+    assert ToolBoundaryMentor._reasoning_effort_for_model("gpt-5.5", "none") == "none"
+
+
+def _mentor_completion_capture(monkeypatch, model, reasoning_effort):
+    calls = []
+
+    def _capture_completion(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content='{"agent_note":"Use exact IDs."}')
+                )
+            ]
+        )
+
+    monkeypatch.setattr(mentor_module, "completion", _capture_completion)
+    env = Environment(
+        domain_name="retail",
+        policy="Test policy.",
+        tools=_MentorToolkit(),
+    )
+    mentor = ToolBoundaryMentor(
+        config=AudioNativeConfig(
+            provider="xai",
+            tool_mentor_enabled=True,
+            tool_mentor_model=model,
+            tool_mentor_reasoning_effort=reasoning_effort,
+        ),
+        environment=env,
+    )
+    mentor._call_json_model(
+        messages=[{"role": "user", "content": "{}"}],
+        timeout_seconds=0.1,
+        response_format=mentor_module.POST_READ_MENTOR_RESPONSE_FORMAT,
+    )
+    return calls[0]
+
+
+def test_grok_reasoning_mentor_omits_temperature_and_effort_none(monkeypatch):
+    call = _mentor_completion_capture(monkeypatch, "xai/grok-4.7", "none")
+
+    assert call["model"] == "xai/grok-4.7"
+    assert "temperature" not in call
+    assert "reasoning_effort" not in call
+
+
+def test_grok_non_reasoning_mentor_pins_temperature(monkeypatch):
+    call = _mentor_completion_capture(
+        monkeypatch, "xai/grok-4.20-0309-non-reasoning", "high"
+    )
+
+    assert call["model"] == "xai/grok-4.20-0309-non-reasoning"
+    assert call["temperature"] == 0
+    assert "reasoning_effort" not in call
 
 
 def test_mentor_model_writes_debug_log(monkeypatch):
@@ -2162,6 +2258,7 @@ def test_mentor_post_read_prompt_guides_contextual_notes(monkeypatch):
 def test_tool_mentor_deadline_defaults_are_seven_seconds():
     config = AudioNativeConfig(provider="openai")
 
+    assert config.tool_mentor_model == "xai/grok-4.20-0309-non-reasoning"
     assert config.tool_mentor_read_timeout_seconds == 7.0
     assert config.tool_mentor_write_timeout_seconds == 7.0
     assert config.tool_mentor_realtime_workers == 5

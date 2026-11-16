@@ -29,14 +29,14 @@ This runs a small experiment (3 tasks, 2 trials) and shows you the essential com
 # Basic experiment with multiple LLMs and domains
 python -m experiments.hyperparam.cli run-evals \
     --exp-dir my-experiment \
-    --llms gpt-4.1-2025-04-14 claude-3-7-sonnet-20250219 \
+    --llms xai/grok-4.7 xai/grok-4.20-0309-non-reasoning \
     --domains retail airline telecom \
     --num-trials 3
 
 # Experiment with specific modes and parameters
 python -m experiments.hyperparam.cli run-evals \
     --exp-dir hyperparameter-sweep \
-    --llms gpt-4.1-2025-04-14 \
+    --llms xai/grok-4.7 \
     --domains telecom \
     --modes default oracle-plan no-user \
     --num-trials 5 \
@@ -71,7 +71,7 @@ Runs evaluation experiments with hyperparameter combinations.
 - `--max-steps`: Maximum steps per trial (default: 200)
 - `--max-concurrency`: Concurrent simulations (default: 100)
 - `--seed`: Random seed (default: 300)
-- `--llm-user`: User simulator model (default: gpt-4.1-2025-04-14)
+- `--llm-user`: User simulator model (default: xai/grok-4.7)
 - `--agent-llm-args`: JSON string of agent LLM parameters (default: temperature=0.0)
 - `--user-llm-args`: JSON string of user LLM parameters (default: temperature=0.0)
 
@@ -147,7 +147,7 @@ The `analyze-results` command provides:
 # Run multiple models across all domains
 python -m experiments.hyperparam.cli run-evals \
     --exp-dir model-comparison-2025 \
-    --llms gpt-4.1-2025-04-14 claude-3-7-sonnet-20250219 o1-2024-12-17 \
+    --llms xai/grok-4.7 xai/grok-4.20-0309-non-reasoning o1-2024-12-17 \
     --domains retail airline telecom \
     --num-trials 5
 
@@ -160,7 +160,7 @@ python -m experiments.hyperparam.cli analyze-results --exp-dir model-comparison-
 # Fast test with limited scope
 python -m experiments.hyperparam.cli run-evals \
     --exp-dir debug-test \
-    --llms gpt-4.1-2025-04-14 \
+    --llms xai/grok-4.7 \
     --domains retail \
     --modes default \
     --num-trials 1 \
@@ -172,7 +172,7 @@ python -m experiments.hyperparam.cli run-evals \
 # Test different temperature settings
 python -m experiments.hyperparam.cli run-evals \
     --exp-dir temp-sensitivity \
-    --llms gpt-4.1-2025-04-14 \
+    --llms xai/grok-4.7 \
     --domains telecom \
     --agent-llm-args '{"temperature": 0.7}' \
     --num-trials 3

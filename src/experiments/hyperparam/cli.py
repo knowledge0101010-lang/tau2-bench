@@ -5,13 +5,13 @@ from loguru import logger
 
 from experiments.hyperparam.analyze_results import analyze_results
 from experiments.hyperparam.run_eval import RunMode, make_configs, run_evals
+from tau2.config import DEFAULT_LLM_USER
 from tau2.scripts.view_simulations import main as view_simulations_main
 from tau2.utils.utils import DATA_DIR
 
 DATA_EXP_DIR = DATA_DIR / "exp"
 
 DEFAULT_LLM_SUPERVISOR = None
-DEFAULT_LLM_USER = "gpt-4.1-2025-04-14"
 DEFAULT_MAX_CONCURRENCY = 5
 DEFAULT_NUM_TRIALS = 4
 DEFAULT_SEED = 300
@@ -56,7 +56,7 @@ def get_cli_parser() -> argparse.ArgumentParser:
         type=str,
         nargs="+",
         required=True,
-        help="List of LLMs to test (e.g. gpt-4.1-2025-04-14 claude-3-7-sonnet-20250219)",
+        help="List of LLMs to test (e.g. xai/grok-4.7 xai/grok-4.20-0309-non-reasoning)",
     )
     run_parser.add_argument(
         "--domains",

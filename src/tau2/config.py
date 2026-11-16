@@ -12,24 +12,39 @@ DEFAULT_LOG_LEVEL = "ERROR"
 # =============================================================================
 # LLM DEFAULTS (overridable via CLI)
 # =============================================================================
+# Text roles go through LiteLLM. ``xai/<model>`` uses XAI_API_KEY against
+# api.x.ai. These are xAI Grok models, not Groq.
+#
+# grok-4.7 is xAI's recommended chat model. The tool mentor uses the
+# non-reasoning grok-4.20 snapshot because its 10s/15s budgets cannot absorb
+# grok-4.7's default high reasoning. Override a single role by changing that
+# constant, or pass the matching CLI flag (--agent-llm, --user-llm,
+# --tool-mentor-model, --review-model).
+#
+# Temperature 0 keeps the historical reproducibility knob. xAI accepts it on
+# grok-4.7 (sampling is capped at 1) and recommends staying near 0.7. Override
+# with --agent-llm-args / --user-llm-args. The tool mentor omits temperature
+# for Grok reasoning models and uses the provider default instead.
 DEFAULT_AGENT_IMPLEMENTATION = "llm_agent"
 DEFAULT_USER_IMPLEMENTATION = "user_simulator"
-DEFAULT_LLM_AGENT = "gpt-4.1-2025-04-14"
-DEFAULT_LLM_USER = "gpt-4.1-2025-04-14"
+DEFAULT_LLM_GROK_CHAT = "xai/grok-4.7"
+DEFAULT_LLM_TOOL_MENTOR = "xai/grok-4.20-0309-non-reasoning"
+DEFAULT_LLM_AGENT = DEFAULT_LLM_GROK_CHAT
+DEFAULT_LLM_USER = DEFAULT_LLM_GROK_CHAT
 DEFAULT_LLM_TEMPERATURE_AGENT = 0.0
 DEFAULT_LLM_TEMPERATURE_USER = 0.0
 DEFAULT_LLM_ARGS_AGENT = {"temperature": DEFAULT_LLM_TEMPERATURE_AGENT}
 DEFAULT_LLM_ARGS_USER = {"temperature": DEFAULT_LLM_TEMPERATURE_USER}
 
-DEFAULT_LLM_NL_ASSERTIONS = "gpt-4.1-2025-04-14"
+DEFAULT_LLM_NL_ASSERTIONS = DEFAULT_LLM_GROK_CHAT
 DEFAULT_LLM_NL_ASSERTIONS_TEMPERATURE = 0.0
 DEFAULT_LLM_NL_ASSERTIONS_ARGS = {"temperature": DEFAULT_LLM_NL_ASSERTIONS_TEMPERATURE}
 
-DEFAULT_LLM_ENV_INTERFACE = "gpt-4.1-2025-04-14"
+DEFAULT_LLM_ENV_INTERFACE = DEFAULT_LLM_GROK_CHAT
 DEFAULT_LLM_ENV_INTERFACE_TEMPERATURE = 0.0
 DEFAULT_LLM_ENV_INTERFACE_ARGS = {"temperature": DEFAULT_LLM_ENV_INTERFACE_TEMPERATURE}
 
-DEFAULT_LLM_EVAL_USER_SIMULATOR = "claude-opus-4-5"
+DEFAULT_LLM_EVAL_USER_SIMULATOR = DEFAULT_LLM_GROK_CHAT
 
 # LLM debug logging
 DEFAULT_LLM_LOG_MODE = "latest"  # Options: "all", "latest"
@@ -91,7 +106,7 @@ DEFAULT_TEXT_STREAMING_CONFIG = {
 # VOICE USER SIMULATOR (fixed versioning + overridable model)
 # =============================================================================
 VOICE_USER_SIMULATOR_VERSION = "v1.0"  # fixed, bump on changes
-VOICE_USER_SIMULATOR_DECISION_MODEL = "gpt-4.1"  # overridable
+VOICE_USER_SIMULATOR_DECISION_MODEL = DEFAULT_LLM_GROK_CHAT  # overridable
 DEFAULT_SPEECH_COMPLEXITY = "regular"  # overridable: "control", "regular"
 
 # =============================================================================

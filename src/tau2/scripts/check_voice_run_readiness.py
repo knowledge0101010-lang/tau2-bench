@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from dotenv import load_dotenv
 
+from tau2.config import DEFAULT_LLM_TOOL_MENTOR
 from tau2.data_model.voice_personas import CONTROL_PERSONA_NAMES, REGULAR_PERSONA_NAMES
 
 Provider = Literal["openai", "xai", "gemini", "livekit"]
@@ -182,7 +183,8 @@ def print_text_report(report: dict[str, Any]) -> None:
         print(f"  [{label}] {' or '.join(names)} - {item['reason']}")
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
+    """CLI for the standalone readiness script."""
     parser = argparse.ArgumentParser(description="Check τ-Voice run readiness.")
     parser.add_argument(
         "--provider",
@@ -195,14 +197,18 @@ def main() -> None:
         default="regular",
     )
     parser.add_argument("--tool-mentor", action="store_true")
-    parser.add_argument("--tool-mentor-model", default="gpt-5.5")
+    parser.add_argument("--tool-mentor-model", default=DEFAULT_LLM_TOOL_MENTOR)
     parser.add_argument(
         "--skip-voice-id-check",
         action="store_true",
         help="Skip local TAU2_VOICE_ID_* checks for Sierra-managed final runs.",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
 
     report = build_readiness_report(
         provider=args.provider,

@@ -12,6 +12,7 @@ from tau2.config import (
     DEFAULT_LLM_LOG_MODE,
     DEFAULT_LLM_TEMPERATURE_AGENT,
     DEFAULT_LLM_TEMPERATURE_USER,
+    DEFAULT_LLM_TOOL_MENTOR,
     DEFAULT_LLM_USER,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_CONCURRENCY,
@@ -287,8 +288,13 @@ def add_run_args(parser):
     parser.add_argument(
         "--tool-mentor-model",
         type=str,
-        default=DEFAULT_LLM_AGENT,
-        help=f"LLM model for --tool-mentor. Default is {DEFAULT_LLM_AGENT}.",
+        default=DEFAULT_LLM_TOOL_MENTOR,
+        help=(
+            "LLM model for --tool-mentor. "
+            f"Default is {DEFAULT_LLM_TOOL_MENTOR} "
+            "(non-reasoning; the 10s/15s mentor budgets are too tight for "
+            f"{DEFAULT_LLM_AGENT}'s default reasoning)."
+        ),
     )
     parser.add_argument(
         "--tool-mentor-reasoning-effort",
@@ -682,7 +688,7 @@ def run_intro():
         "tau2 check-data\n"
         "\n"
         "# 2. Run a text (half-duplex) evaluation\n"
-        "tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 "
+        "tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 "
         "--num-trials 1 --num-tasks 5\n"
         "\n"
         "# 3. Run a voice (full-duplex) evaluation\n"
