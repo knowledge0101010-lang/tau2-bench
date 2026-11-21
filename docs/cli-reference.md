@@ -24,8 +24,10 @@ tau2 run \
 | Option | Description |
 |--------|-------------|
 | `--domain`, `-d` | Domain to evaluate: `airline`, `retail`, `telecom`, `mock`, `banking_knowledge` |
-| `--agent-llm` | LLM model for the agent |
-| `--user-llm` | LLM model for the user simulator |
+| `--profile` | `consumer` (low-cost Grok smoke) or `enterprise` (YAML routing and budgets). Omit to keep standard defaults. See [Editions](editions.md). |
+| `--enterprise-config` | YAML file for `--profile enterprise` |
+| `--agent-llm` | LLM model for the agent (default: `xai/grok-4.7`) |
+| `--user-llm` | LLM model for the user simulator (default: `xai/grok-4.7`) |
 | `--agent-llm-args` | JSON dict of extra args for agent LLM (e.g. `'{"temperature": 0.5}'`) |
 | `--user-llm-args` | JSON dict of extra args for user LLM |
 | `--agent` | Agent implementation to use (default: `llm_agent`) |
@@ -53,7 +55,7 @@ tau2 run \
 | `--auto-resume` | Automatically resume from existing save file without prompting |
 | `--auto-review` | Automatically run LLM conversation review after each simulation |
 | `--review-mode` | Review mode when `--auto-review` is on: `full` or `user` (default: `full`) |
-| `--review-model` | LLM model to use for review calls (default: `claude-opus-4-5`) |
+| `--review-model` | LLM model to use for review calls (default: `xai/grok-4.7`) |
 | `--hallucination-retries` | Max retries when user simulator hallucination is detected (full-duplex only, default: `3`). Set to `0` to disable |
 | `--timeout` | Maximum wallclock time in seconds per simulation (no timeout by default) |
 | `--audio-native` | Enable audio native mode (voice full-duplex) |
@@ -67,6 +69,7 @@ tau2 run \
 |--------|---------|-------------|
 | `--audio-native` | `false` | Enable audio native mode |
 | `--audio-native-provider` | `openai` | Provider: `openai`, `gemini`, `xai` |
+| `--tool-mentor-model` | `xai/grok-4.20-0309-non-reasoning` | Text LLM for `--tool-mentor`. Non-reasoning so the 10s/15s deadlines stay realistic. Grok reasoning models omit forced temperature. |
 | `--audio-native-model` | *(per-provider)* | Model to use (defaults to provider-specific model if not set) |
 | `--tick-duration` | `0.2` | Tick duration in seconds (simulation timestep) |
 | `--max-steps-seconds` | `600` | Maximum conversation duration in seconds |
@@ -89,8 +92,8 @@ tau2 run \
 ### Examples
 
 ```bash
-# Standard text evaluation
-tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-trials 1 --num-tasks 5
+# Standard text evaluation (flags match the defaults; xAI Grok, not Groq)
+tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-trials 1 --num-tasks 5
 
 # Audio native (voice full-duplex)
 tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs
@@ -105,12 +108,14 @@ tau2 run --domain retail --audio-native --hallucination-retries 0 --num-tasks 1
 
 # Knowledge retrieval with BM25
 tau2 run --domain banking_knowledge --retrieval-config bm25 \
-  --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-tasks 5
+  --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-tasks 5
 
 # Knowledge retrieval with embeddings and reranker
 tau2 run --domain banking_knowledge --retrieval-config openai_embeddings_reranker \
-  --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-tasks 5
+  --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-tasks 5
 ```
+
+Results with the default Grok text models are not comparable to published leaderboard entries. OpenAI embeddings and the OpenAI reranker are unchanged. The realtime voice agent stays `grok-voice-think-fast-1.0`.
 
 
 ---
@@ -218,7 +223,7 @@ tau2 review <path>
 | `--limit` | Limit review to first N simulations |
 | `--task-ids` | Only review simulations for these task IDs |
 | `--log-llm` | Log LLM request/response for each review call |
-| `--review-model` | LLM model to use for review calls (default: `claude-opus-4-5`) |
+| `--review-model` | LLM model to use for review calls (default: `xai/grok-4.7`) |
 
 ---
 
@@ -331,7 +336,7 @@ The LLM is given all tools and information upfront (no user interaction):
 tau2 run \
   --domain telecom \
   --agent llm_agent_solo \
-  --agent-llm gpt-4.1 \
+  --agent-llm xai/grok-4.7 \
   --user dummy_user
 ```
 
@@ -343,8 +348,8 @@ The LLM is given an oracle plan, removing the need for action planning:
 tau2 run \
   --domain telecom \
   --agent llm_agent_gt \
-  --agent-llm gpt-4.1 \
-  --user-llm gpt-4.1
+  --agent-llm xai/grok-4.7 \
+  --user-llm xai/grok-4.7
 ```
 
 ### Workflow policy format
@@ -354,6 +359,6 @@ Test the impact of policy format using the workflow policy for telecom:
 ```bash
 tau2 run \
   --domain telecom-workflow \
-  --agent-llm gpt-4.1 \
-  --user-llm gpt-4.1
+  --agent-llm xai/grok-4.7 \
+  --user-llm xai/grok-4.7
 ```

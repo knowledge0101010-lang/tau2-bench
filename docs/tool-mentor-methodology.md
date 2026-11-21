@@ -69,8 +69,10 @@ The run configuration pins:
 
 ### 2. Tool-boundary mentor (`--tool-mentor`)
 
-A separate LLM (`gemini/gemini-3.5-flash`, reasoning effort **high**)
-supervises the voice agent's tool calls in real time:
+In the submitted runs, a separate LLM (`gemini/gemini-3.5-flash`, reasoning
+effort **high**) supervises the voice agent's tool calls in real time. The
+CLI default is now `xai/grok-4.20-0309-non-reasoning` (see current defaults
+below); that default does not reproduce this section:
 
 - **pre_write gate**: state-mutating and escalation tool calls (default:
   `transfer_to_human_agents`) are reviewed before execution. `allow`
@@ -123,6 +125,28 @@ does not reproduce on this stack (see the caveats above), so neither number
 is comparable to it. The dominant contribution of this scaffold is the
 supervisor's reasoning budget, not its prompt wording.
 
+## Current text LLM defaults
+
+Text roles in this fork default to xAI Grok via LiteLLM (`XAI_API_KEY`,
+prefix `xai/`). xAI (`api.x.ai`) is not Groq.
+
+| Role | Default |
+|---|---|
+| Agent, user simulator, NL assertions, environment interface, review, voice user-simulator decisions | `xai/grok-4.7` |
+| Tool mentor | `xai/grok-4.20-0309-non-reasoning` |
+
+The realtime voice agent stays `grok-voice-think-fast-1.0`. ElevenLabs TTS,
+Deepgram STT, OpenAI embeddings, and the OpenAI reranker are unchanged.
+Grok reasoning models (`grok-4.7`, `grok-4.5` and later, and ids marked
+`reasoning` or `multi-agent`) omit a forced mentor temperature and use the
+provider default. `reasoning_effort=none` is not sent to Grok models that
+cannot disable reasoning (`grok-4.3` still accepts `none`). The non-reasoning
+mentor snapshot keeps `temperature=0`.
+
+Results with these defaults are not comparable to published τ-bench
+leaderboard entries, including the voice numbers above. The reproduction
+command pins the submitted models explicitly.
+
 ## Reproduction
 
 ### Credentials
@@ -164,8 +188,9 @@ python -m tau2.cli run --domain {retail|airline|telecom} \
 
 Notes:
 
-- `--tool-mentor-model` must be passed explicitly (the CLI default is the
-  generic default agent model, not the mentor model used here).
+- `--tool-mentor-model` must be passed explicitly. The CLI default is
+  `xai/grok-4.20-0309-non-reasoning`, not `gemini/gemini-3.5-flash` and not
+  the agent model (`xai/grok-4.7`).
 - `TAU2_OFFICIAL_PYTHON_HASH_VOICE_SEED=1` selects the upstream salted-hash
   per-task voice assignment (the submitted runs used it). Without it, this
   branch uses a process-stable blake2b seed — see behavioral differences.

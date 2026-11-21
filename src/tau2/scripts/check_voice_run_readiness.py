@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from dotenv import load_dotenv
 
+from tau2.config import DEFAULT_LLM_TOOL_MENTOR, VOICE_USER_SIMULATOR_DECISION_MODEL
 from tau2.data_model.voice_personas import CONTROL_PERSONA_NAMES, REGULAR_PERSONA_NAMES
 
 Provider = Literal["openai", "xai", "gemini", "livekit"]
@@ -68,19 +69,31 @@ def _provider_requirements(provider: Provider) -> list[Requirement]:
     raise ValueError(f"Unsupported provider: {provider}")
 
 
-def _mentor_requirements(enabled: bool, model: str) -> list[Requirement]:
-    if not enabled:
-        return []
+def _text_model_requirements(model: str, reason: str) -> list[Requirement]:
+    """Credential for a LiteLLM text model id. Unknown providers need none."""
     if model.startswith("xai/") or model.startswith("grok"):
-        return [Requirement("XAI_API_KEY", "tool mentor LLM")]
-    if model.startswith("gemini/") or model.startswith("google/"):
+        return [Requirement("XAI_API_KEY", reason)]
+    if model.startswith(("gemini/", "google/")):
         return [
             Requirement(
                 "GEMINI_API_KEY",
-                "tool mentor LLM",
+                reason,
                 alternatives=("GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS"),
             )
         ]
+    if model.startswith("anthropic/") or model.startswith("claude"):
+        return [Requirement("ANTHROPIC_API_KEY", reason)]
+    if model.startswith(("openai/", "gpt-")):
+        return [Requirement("OPENAI_API_KEY", reason)]
+    return []
+
+
+def _mentor_requirements(enabled: bool, model: str) -> list[Requirement]:
+    if not enabled:
+        return []
+    requirements = _text_model_requirements(model, "tool mentor LLM")
+    if requirements:
+        return requirements
     return [Requirement("OPENAI_API_KEY", "tool mentor LLM")]
 
 
@@ -131,6 +144,10 @@ def build_readiness_report(
         Requirement("ELEVENLABS_API_KEY", "voice user simulator TTS"),
         Requirement("DEEPGRAM_API_KEY", "voice user simulator transcription"),
         *_provider_requirements(provider),
+        *_text_model_requirements(
+            VOICE_USER_SIMULATOR_DECISION_MODEL,
+            "voice user simulator interruption and backchannel decisions",
+        ),
         *_mentor_requirements(tool_mentor, tool_mentor_model),
     ]
     if require_voice_ids:
@@ -182,7 +199,8 @@ def print_text_report(report: dict[str, Any]) -> None:
         print(f"  [{label}] {' or '.join(names)} - {item['reason']}")
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
+    """CLI for the standalone readiness script."""
     parser = argparse.ArgumentParser(description="Check τ-Voice run readiness.")
     parser.add_argument(
         "--provider",
@@ -195,14 +213,18 @@ def main() -> None:
         default="regular",
     )
     parser.add_argument("--tool-mentor", action="store_true")
-    parser.add_argument("--tool-mentor-model", default="gpt-5.5")
+    parser.add_argument("--tool-mentor-model", default=DEFAULT_LLM_TOOL_MENTOR)
     parser.add_argument(
         "--skip-voice-id-check",
         action="store_true",
         help="Skip local TAU2_VOICE_ID_* checks for Sierra-managed final runs.",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
 
     report = build_readiness_report(
         provider=args.provider,

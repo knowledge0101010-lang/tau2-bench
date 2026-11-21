@@ -1,0 +1,30 @@
+# Enterprise profile for tau2 run --profile enterprise
+# xAI Grok uses the xai/ prefix (api.x.ai). Groq is a different provider.
+# Omit a role to keep that role's current default.
+# An explicit CLI flag (--agent-llm, --user-llm, --review-model,
+# --tool-mentor-model, --max-concurrency, --seed, --save-to) wins over this file.
+
+models:
+  agent: xai/grok-4.7
+  user: xai/grok-4.7
+  nl_assertions: xai/grok-4.7
+  env_interface: xai/grok-4.7
+  review: xai/grok-4.7
+  tool_mentor: xai/grok-4.20-0309-non-reasoning
+  voice_decision: xai/grok-4.7
+
+concurrency:
+  max_concurrency: 2
+
+budget:
+  max_cost_usd: 0.50
+  max_tokens: 20000
+
+retry:
+  max_retries: 3
+  min_wait_seconds: 1.0
+  max_wait_seconds: 8.0
+  multiplier: 2.0
+
+seed: 300
+# audit_log: /path/to/edition-audit.jsonl

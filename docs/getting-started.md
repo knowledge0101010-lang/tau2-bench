@@ -69,6 +69,10 @@ Copy `.env.example` as `.env` and edit it to include your API keys:
 cp .env.example .env
 ```
 
+Default text roles use xAI Grok through LiteLLM (`xai/grok-4.7` for the agent, user simulator, NL assertions, environment interface, review, and voice user-simulator decisions; `xai/grok-4.20-0309-non-reasoning` for the tool mentor). Set `XAI_API_KEY`. This is xAI (`api.x.ai`), not Groq. `OPENAI_API_KEY` is still required for OpenAI embeddings, the OpenAI reranker, and optional OpenAI voice providers.
+
+Results with these defaults are not comparable to published τ-bench leaderboard entries.
+
 ### Voice API Keys (for voice-enabled features)
 
 If you're using voice features, add the following to your `.env` file:
@@ -92,8 +96,20 @@ See the [Voice Persona Setup Guide](voice-personas.md) for step-by-step instruct
 ### Standard text-based evaluation (half-duplex)
 
 ```bash
-tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 \
+tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 \
   --num-trials 1 --num-tasks 5
+```
+
+Those `--agent-llm` and `--user-llm` values are the defaults, so the flags can be omitted. Scores from this default are not comparable to published leaderboard entries.
+
+`--profile consumer` runs that smoke with low-cost limits (mock, 1 task, 8 steps) and tells you if `XAI_API_KEY` is missing. `--profile enterprise` adds a YAML file for routing, budgets, and an audit log. With no `--profile`, nothing about the defaults changes. xAI Grok is not Groq. Short guide, English and Korean: [Editions](editions.md).
+
+`--profile consumer`는 같은 스모크를 낮은 한도로 돌리고, `XAI_API_KEY`가 없으면 이유를 알리고 멈춥니다. `--profile enterprise`는 YAML로 라우팅, 예산, 감사 로그를 켭니다. `--profile`을 생략하면 기본값은 바뀌지 않습니다. xAI Grok는 Groq가 아닙니다. [Editions](editions.md).
+
+A mock-domain smoke run (needs `XAI_API_KEY`; this repo's checks do not call the API):
+
+```bash
+tau2 run --domain mock --num-trials 1 --num-tasks 1
 ```
 
 Results are saved in `data/simulations/`.
@@ -106,13 +122,20 @@ Results are saved in `data/simulations/`.
 tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs
 ```
 
+Credential check only (no conversation). The tool mentor defaults to `xai/grok-4.20-0309-non-reasoning`:
+
+```bash
+tau2 run --domain retail --audio-native --audio-native-provider xai \
+  --tool-mentor --preflight-only --skip-voice-id-check
+```
+
 See the [Audio Native Documentation](../src/tau2/voice/audio_native/README.md) for provider configuration and all options.
 
 ### Knowledge retrieval evaluation
 
 ```bash
 tau2 run --domain banking_knowledge --retrieval-config bm25 \
-  --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-tasks 5
+  --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-tasks 5
 ```
 
 See the [Knowledge Retrieval Documentation](../src/tau2/knowledge/README.md) for retrieval configuration options.

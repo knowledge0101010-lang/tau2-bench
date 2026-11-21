@@ -21,15 +21,15 @@ Each layer builds on the one below it, but you can enter at any level depending 
 The fastest way to run simulations is through the `tau2 run` command:
 
 ```bash
-# Run all airline tasks with GPT-4.1
-tau2 run --domain airline --agent llm_agent --agent-llm openai/gpt-4.1
+# Run all airline tasks with the default Grok chat model (xAI, not Groq)
+tau2 run --domain airline --agent llm_agent --agent-llm xai/grok-4.7
 
 # Run specific tasks with multiple trials
-tau2 run --domain retail --agent llm_agent --agent-llm openai/gpt-4.1 \
+tau2 run --domain retail --agent llm_agent --agent-llm xai/grok-4.7 \
     --task-ids 0 1 --num-trials 3
 
 # Run with concurrency and auto-resume
-tau2 run --domain telecom --agent llm_agent --agent-llm openai/gpt-4.1 \
+tau2 run --domain telecom --agent llm_agent --agent-llm xai/grok-4.7 \
     --max-concurrency 4 --auto-resume
 ```
 
@@ -50,8 +50,8 @@ from tau2.runner import run_domain
 config = TextRunConfig(
     domain="airline",
     agent="llm_agent",
-    llm_agent="openai/gpt-4.1",
-    llm_user="openai/gpt-4.1-mini",
+    llm_agent="xai/grok-4.7",
+    llm_user="xai/grok-4.20-0309-non-reasoning",
     num_trials=3,
     max_concurrency=4,
     seed=42,
@@ -77,7 +77,7 @@ config = VoiceRunConfig(
         provider="openai",
         model="gpt-4o-realtime-preview",
     ),
-    llm_user="openai/gpt-4.1",
+    llm_user="xai/grok-4.7",
     speech_complexity="regular",
 )
 
@@ -93,8 +93,8 @@ from tau2.runner import run_domain
 config = TextRunConfig(
     domain="banking_knowledge",
     agent="llm_agent",
-    llm_agent="openai/gpt-4.1",
-    llm_user="openai/gpt-4.1",
+    llm_agent="xai/grok-4.7",
+    llm_user="xai/grok-4.7",
     retrieval_config="alltools",  # or "bm25", "openai_embeddings", "terminal_use", etc.
     num_trials=3,
 )
@@ -116,7 +116,7 @@ from tau2.runner import get_tasks, run_tasks
 config = TextRunConfig(
     domain="airline",
     agent="llm_agent",
-    llm_agent="openai/gpt-4.1",
+    llm_agent="xai/grok-4.7",
 )
 
 # Load and filter tasks manually
@@ -137,7 +137,7 @@ results = run_tasks(
 from tau2 import TextRunConfig
 from tau2.runner import run_single_task, get_tasks
 
-config = TextRunConfig(domain="airline", agent="llm_agent", llm_agent="openai/gpt-4.1")
+config = TextRunConfig(domain="airline", agent="llm_agent", llm_agent="xai/grok-4.7")
 tasks = get_tasks("airline")
 
 result = run_single_task(config, tasks[0], seed=42)
@@ -173,14 +173,14 @@ task = tasks[0]
 
 # Option A: Build orchestrator from config (uses registry)
 from tau2 import TextRunConfig
-config = TextRunConfig(domain="airline", agent="llm_agent", llm_agent="openai/gpt-4.1")
+config = TextRunConfig(domain="airline", agent="llm_agent", llm_agent="xai/grok-4.7")
 orchestrator = build_orchestrator(config, task, seed=42)
 result = run_simulation(orchestrator, evaluation_type=EvaluationType.ALL)
 
 # Option B: Build components individually
 env = build_environment("airline")
-agent = build_agent("llm_agent", env, llm="openai/gpt-4.1")
-user = build_user("user_simulator", env, task, llm="openai/gpt-4.1-mini")
+agent = build_agent("llm_agent", env, llm="xai/grok-4.7")
+user = build_user("user_simulator", env, task, llm="xai/grok-4.20-0309-non-reasoning")
 ```
 
 ### Fully custom instances (no registry needed)
@@ -198,7 +198,7 @@ agent = MyCustomAgent(tools=env.get_tools(), domain_policy=env.get_policy())
 user = UserSimulator(
     tools=env.get_user_tools(),
     instructions=str(task.user_scenario),
-    llm="openai/gpt-4.1-mini",
+    llm="xai/grok-4.20-0309-non-reasoning",
 )
 
 # Wire everything into an orchestrator
@@ -231,7 +231,7 @@ config = VoiceRunConfig(
         provider="openai",
         model="gpt-4o-realtime-preview",
     ),
-    llm_user="openai/gpt-4.1",
+    llm_user="xai/grok-4.7",
     speech_complexity="regular",
 )
 

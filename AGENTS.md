@@ -24,9 +24,15 @@ uv run tau2 check-data         # verify installation
 Environment variables: copy `.env.example` to `.env` and set API keys. Uses [LiteLLM](https://github.com/BerriAI/litellm) for LLM provider abstraction.
 
 Required keys depend on the task:
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — for LLM-based agents and user simulators
+- `XAI_API_KEY` — default text LLMs (`xai/grok-4.7` for agent, user simulator, review, NL assertions, environment interface, and voice user-simulator decisions; `xai/grok-4.20-0309-non-reasoning` for the tool mentor). This is xAI (`api.x.ai`), not Groq.
+- `OPENAI_API_KEY` — OpenAI embeddings, the OpenAI reranker, and optional OpenAI voice providers
+- `ANTHROPIC_API_KEY` — only when an Anthropic model is selected explicitly
 - `ELEVENLABS_API_KEY` — voice synthesis
 - `DEEPGRAM_API_KEY` — voice transcription
+
+Results with the Grok text defaults are not comparable to published leaderboard entries.
+
+`--profile` is optional. Omit it and the defaults above stay in force. `consumer` is a low-cost mock smoke. `enterprise` reads a YAML file for per-role routing, budgets, and a secret-free audit log. xAI (`xai/`) and Groq stay distinct. See `docs/editions.md` (English and Korean).
 
 ## Common Commands
 
@@ -49,14 +55,15 @@ Required keys depend on the task:
 ## Running Evaluations
 
 ```bash
-# Text half-duplex (standard)
-tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-trials 1 --num-tasks 5
+# Text half-duplex (standard). These model flags match the defaults.
+tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-trials 1 --num-tasks 5
 
-# Voice full-duplex (audio native)
+# Voice full-duplex (audio native). The provider default stays `openai`; the xAI voice
+# model (grok-voice-think-fast-1.0) is unchanged and selected with --audio-native-provider xai.
 tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs
 
-# Knowledge domain (requires --retrieval-config)
-tau2 run --domain banking_knowledge --retrieval-config qwen_embeddings --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-tasks 5
+# Knowledge domain (requires --retrieval-config). Embeddings and the OpenAI reranker are unchanged.
+tau2 run --domain banking_knowledge --retrieval-config qwen_embeddings --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-tasks 5
 ```
 
 Results go to `data/simulations/`. Use `tau2 view` to browse them.

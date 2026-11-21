@@ -12,6 +12,7 @@ from tau2.config import (
     DEFAULT_LLM_LOG_MODE,
     DEFAULT_LLM_TEMPERATURE_AGENT,
     DEFAULT_LLM_TEMPERATURE_USER,
+    DEFAULT_LLM_TOOL_MENTOR,
     DEFAULT_LLM_USER,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_CONCURRENCY,
@@ -57,6 +58,27 @@ def add_run_args(parser):
         type=str,
         choices=domains,
         help="The domain to run the simulation on",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("consumer", "enterprise"),
+        default=None,
+        help=(
+            "Edition profile. Omit to keep the standard defaults. "
+            "consumer: one low-cost Grok smoke on the mock domain. "
+            "enterprise: YAML routing, budgets, and an audit log "
+            "(--enterprise-config)."
+        ),
+    )
+    parser.add_argument(
+        "--enterprise-config",
+        type=str,
+        default=None,
+        help=(
+            "YAML config for --profile enterprise. "
+            "Ignored only when it is omitted. xAI Grok ids use the xai/ prefix, "
+            "not Groq."
+        ),
     )
     parser.add_argument(
         "--num-trials",
@@ -287,8 +309,13 @@ def add_run_args(parser):
     parser.add_argument(
         "--tool-mentor-model",
         type=str,
-        default=DEFAULT_LLM_AGENT,
-        help=f"LLM model for --tool-mentor. Default is {DEFAULT_LLM_AGENT}.",
+        default=DEFAULT_LLM_TOOL_MENTOR,
+        help=(
+            "LLM model for --tool-mentor. "
+            f"Default is {DEFAULT_LLM_TOOL_MENTOR} "
+            "(non-reasoning; the 10s/15s mentor budgets are too tight for "
+            f"{DEFAULT_LLM_AGENT}'s default reasoning)."
+        ),
     )
     parser.add_argument(
         "--tool-mentor-reasoning-effort",
@@ -682,7 +709,7 @@ def run_intro():
         "tau2 check-data\n"
         "\n"
         "# 2. Run a text (half-duplex) evaluation\n"
-        "tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 "
+        "tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 "
         "--num-trials 1 --num-tasks 5\n"
         "\n"
         "# 3. Run a voice (full-duplex) evaluation\n"
@@ -719,6 +746,15 @@ def main():
     add_run_args(run_parser)
 
     def run_command(args):
+        import sys
+
+        from tau2.edition.apply import consumer_summary, prepare_edition
+        from tau2.edition.session import BudgetExceeded
+
+        edition = prepare_edition(args, sys.argv[1:])
+        if edition.consumer_banner:
+            print(edition.consumer_banner)
+
         user_persona_config = None
         if args.user_persona:
             user_persona_config = PersonaConfig.from_dict(args.user_persona)  # noqa: F841
@@ -875,7 +911,22 @@ def main():
                 enforce_communication_protocol=args.enforce_communication_protocol,
             )
 
-        return run_domain(config)
+        def _execute():
+            return run_domain(config)
+
+        try:
+            if edition.session is not None:
+                with edition.session:
+                    result = _execute()
+            else:
+                result = _execute()
+        except BudgetExceeded as exc:
+            # Outside the session: the audit run_end keeps the real cause.
+            print(str(exc))
+            raise SystemExit(2) from exc
+        if edition.profile == "consumer":
+            print(consumer_summary(result))
+        return result
 
     run_parser.set_defaults(func=run_command)
 

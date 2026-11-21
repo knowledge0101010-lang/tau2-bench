@@ -3,7 +3,7 @@
 Domains with a knowledge base (currently just `banking_knowledge`) use a `--retrieval-config` flag that controls how the agent accesses the knowledge base.
 
 ```bash
-tau2 run --domain banking_knowledge --retrieval-config <config_name> --agent-llm gpt-4.1 --user-llm gpt-4.1
+tau2 run --domain banking_knowledge --retrieval-config <config_name> --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7
 ```
 
 If `--retrieval-config` is omitted for `banking_knowledge`, the default is **`alltools`**: BM25 search, dense embedding search, and read-only shell (see below). Choose an offline-only config such as **`bm25`** if you want no API keys or sandbox.

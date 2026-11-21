@@ -12,7 +12,8 @@ from typing import Any, Optional
 
 import httpx
 import litellm
-from litellm import completion, completion_cost
+from litellm import completion as _litellm_completion
+from litellm import completion_cost
 from litellm.caching.caching import Cache
 from litellm.main import ModelResponse, Usage
 from loguru import logger
@@ -352,6 +353,16 @@ def _write_llm_log(
         json.dump(call_data, f, indent=2)
 
 
+def completion(*args, **kwargs):
+    """LiteLLM completion. An active enterprise profile adds budget, retry, and audit.
+
+    With no profile this calls LiteLLM directly.
+    """
+    from tau2.edition.session import guard_llm_call
+
+    return guard_llm_call(_litellm_completion, *args, **kwargs)
+
+
 def generate(
     model: str,
     messages: list[Message],
@@ -376,6 +387,9 @@ def generate(
     Returns: A tuple containing the message and the cost.
     """
     validate_message_history(messages)
+    from tau2.edition.session import resolve_routed_model
+
+    model = resolve_routed_model(model, call_name)
     if kwargs.get("num_retries") is None:
         kwargs["num_retries"] = DEFAULT_MAX_RETRIES
 

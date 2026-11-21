@@ -26,6 +26,7 @@ from tau2.config import (
     DEFAULT_LLM_ARGS_AGENT,
     DEFAULT_LLM_ARGS_USER,
     DEFAULT_LLM_EVAL_USER_SIMULATOR,
+    DEFAULT_LLM_TOOL_MENTOR,
     DEFAULT_LLM_USER,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_CONCURRENCY,
@@ -196,8 +197,12 @@ class AudioNativeConfig(BaseModel):
         description="Enable custom agent-side tool boundary mentor for audio-native runs.",
     )
     tool_mentor_model: str = Field(
-        default=DEFAULT_LLM_AGENT,
-        description="LLM model used by the custom tool boundary mentor.",
+        default=DEFAULT_LLM_TOOL_MENTOR,
+        description=(
+            "LLM model used by the custom tool boundary mentor. "
+            "Defaults to a non-reasoning Grok snapshot so the mentor stays "
+            "inside its read/write deadlines."
+        ),
     )
     tool_mentor_reasoning_effort: Optional[str] = Field(
         default=None,

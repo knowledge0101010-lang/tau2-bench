@@ -593,9 +593,13 @@ class ToolBoundaryMentor:
         response_format: dict[str, Any],
     ) -> dict[str, Any]:
         def _attempt() -> dict[str, Any]:
+            model = self.config.tool_mentor_model
+            reasoning_effort = self._reasoning_effort_for_model(
+                model, self.config.tool_mentor_reasoning_effort
+            )
             kwargs: dict[str, Any] = {}
-            if self.config.tool_mentor_reasoning_effort is not None:
-                kwargs["reasoning_effort"] = self.config.tool_mentor_reasoning_effort
+            if reasoning_effort is not None:
+                kwargs["reasoning_effort"] = reasoning_effort
             request_timestamp = datetime.now().isoformat()
             start_time = time.perf_counter()
             request_kwargs: dict[str, Any] = {
@@ -935,8 +939,69 @@ class ToolBoundaryMentor:
         return False
 
     @staticmethod
+    def _model_leaf(model: str) -> str:
+        return model.lower().strip().split("/")[-1]
+
+    @staticmethod
+    def _is_grok_reasoning_text_model(model: str) -> bool:
+        """xAI Grok text models that reason, excluding explicit non-reasoning ids.
+
+        ``grok-4`` and later text models reason unless the id contains
+        ``non-reasoning``. Voice and image Grok models are not chat-completion
+        peers of the mentor. ``grok-3`` and earlier keep caller temperature.
+        """
+        leaf = ToolBoundaryMentor._model_leaf(model)
+        if not leaf.startswith("grok-"):
+            return False
+        if leaf.startswith(("grok-voice", "grok-imagine")):
+            return False
+        if "non-reasoning" in leaf or "non_reasoning" in leaf:
+            return False
+        return (
+            leaf == "grok-4" or leaf.startswith("grok-4-") or leaf.startswith("grok-4.")
+        )
+
+    @staticmethod
+    def _reasoning_effort_for_model(model: str, effort: Optional[str]) -> Optional[str]:
+        """Drop reasoning-effort values that Grok models reject or ignore.
+
+        Non-reasoning Grok snapshots have no reasoning budget. ``grok-4.5`` and
+        later cannot disable reasoning, so ``none`` is omitted and the provider
+        default applies. ``grok-4.3`` is the documented exception that accepts
+        ``none``. Other providers are forwarded unchanged.
+        """
+        if effort is None:
+            return None
+        leaf = ToolBoundaryMentor._model_leaf(model)
+        if "non-reasoning" in leaf or "non_reasoning" in leaf:
+            logger.warning(
+                f"Tool mentor model {model} is non-reasoning; "
+                f"ignoring reasoning_effort={effort!r}"
+            )
+            return None
+        if (
+            effort == "none"
+            and ToolBoundaryMentor._is_grok_reasoning_text_model(model)
+            and not leaf.startswith("grok-4.3")
+        ):
+            logger.warning(
+                f"Tool mentor model {model} cannot disable reasoning; "
+                "ignoring reasoning_effort='none'"
+            )
+            return None
+        return effort
+
+    @staticmethod
     def _uses_provider_default_sampling(model: str) -> bool:
-        """Use provider sampling defaults for reasoning models that own sampling."""
-        normalized = model.lower()
-        providerless = normalized.split("/", 1)[-1]
-        return "gemini-3" in providerless or providerless.startswith("gpt-5")
+        """Skip caller temperature for models that own sampling.
+
+        Gemini 3 and GPT-5 reject a forced temperature. Grok reasoning models
+        accept temperature, but xAI caps sampling and recommends staying near
+        0.7, so forcing 0 fights the reasoning sampler. Those ids use the
+        provider default. The non-reasoning tool-mentor snapshot still gets
+        temperature 0.
+        """
+        providerless = model.lower().split("/", 1)[-1]
+        if "gemini-3" in providerless or providerless.startswith("gpt-5"):
+            return True
+        return ToolBoundaryMentor._is_grok_reasoning_text_model(model)

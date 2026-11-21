@@ -42,6 +42,7 @@ def test_openai_control_readiness_reports_missing_keys(monkeypatch, tmp_path):
         "ELEVENLABS_API_KEY",
         "DEEPGRAM_API_KEY",
         "OPENAI_API_KEY",
+        "XAI_API_KEY",
         "TAU2_VOICE_ID_MATT_DELANEY",
         "TAU2_VOICE_ID_LISA_BRENNER",
     }
@@ -50,6 +51,29 @@ def test_openai_control_readiness_reports_missing_keys(monkeypatch, tmp_path):
     ]
     assert len(openai_items) == 1
     assert "tool mentor LLM" in openai_items[0]["reason"]
+
+
+def test_default_decision_model_requires_xai_key_with_any_provider(
+    monkeypatch, tmp_path
+):
+    """The voice decision model is xai/grok-4.7 regardless of the agent provider."""
+    _clear_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven")
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "deepgram")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai")
+
+    report = build_readiness_report(
+        provider="openai",
+        speech_complexity="control",
+        tool_mentor=False,
+        tool_mentor_model="gpt-4.1-2025-04-14",
+        require_voice_ids=False,
+    )
+
+    assert report["ok"] is False
+    assert [item["name"] for item in report["missing"]] == ["XAI_API_KEY"]
+    assert "decisions" in report["missing"][0]["reason"]
 
 
 def test_xai_control_readiness_passes_with_required_keys(monkeypatch):
@@ -125,6 +149,7 @@ def test_readiness_dotenv_does_not_override_exported_env(monkeypatch, tmp_path):
 def test_gemini_accepts_google_alternative_key(monkeypatch):
     _clear_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_API_KEY", "google")
+    monkeypatch.setenv("XAI_API_KEY", "xai")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven")
     monkeypatch.setenv("DEEPGRAM_API_KEY", "deepgram")
 
@@ -143,6 +168,7 @@ def test_gemini_accepts_google_alternative_key(monkeypatch):
 def test_gemini_tool_mentor_reports_provider_compatibility_issue(monkeypatch):
     _clear_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_API_KEY", "google")
+    monkeypatch.setenv("XAI_API_KEY", "xai")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven")
     monkeypatch.setenv("DEEPGRAM_API_KEY", "deepgram")
 

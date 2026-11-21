@@ -55,7 +55,7 @@ def make_config(
     - Experiment parameters (trials, steps, errors, etc.)
 
     Args:
-        llm (str): The LLM model to use (e.g., "gpt-4.1-2025-04-14")
+        llm (str): The LLM model to use (e.g., "xai/grok-4.7")
         domain (str): The domain to run experiments on ("retail", "airline", "telecom")
         mode (RunMode): The experiment mode ("base", "gt", "solo", "solo-gt")
         exp_dir (str): Name of the experiment directory for saving results
