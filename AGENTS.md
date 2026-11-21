@@ -58,7 +58,8 @@ Results with the Grok text defaults are not comparable to published leaderboard 
 # Text half-duplex (standard). These model flags match the defaults.
 tau2 run --domain airline --agent-llm xai/grok-4.7 --user-llm xai/grok-4.7 --num-trials 1 --num-tasks 5
 
-# Voice full-duplex (audio native). The voice agent model stays grok-voice-think-fast-1.0.
+# Voice full-duplex (audio native). The provider default stays `openai`; the xAI voice
+# model (grok-voice-think-fast-1.0) is unchanged and selected with --audio-native-provider xai.
 tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs
 
 # Knowledge domain (requires --retrieval-config). Embeddings and the OpenAI reranker are unchanged.

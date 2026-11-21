@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from dotenv import load_dotenv
 
-from tau2.config import DEFAULT_LLM_TOOL_MENTOR
+from tau2.config import DEFAULT_LLM_TOOL_MENTOR, VOICE_USER_SIMULATOR_DECISION_MODEL
 from tau2.data_model.voice_personas import CONTROL_PERSONA_NAMES, REGULAR_PERSONA_NAMES
 
 Provider = Literal["openai", "xai", "gemini", "livekit"]
@@ -69,19 +69,31 @@ def _provider_requirements(provider: Provider) -> list[Requirement]:
     raise ValueError(f"Unsupported provider: {provider}")
 
 
-def _mentor_requirements(enabled: bool, model: str) -> list[Requirement]:
-    if not enabled:
-        return []
+def _text_model_requirements(model: str, reason: str) -> list[Requirement]:
+    """Credential for a LiteLLM text model id. Unknown providers need none."""
     if model.startswith("xai/") or model.startswith("grok"):
-        return [Requirement("XAI_API_KEY", "tool mentor LLM")]
-    if model.startswith("gemini/") or model.startswith("google/"):
+        return [Requirement("XAI_API_KEY", reason)]
+    if model.startswith(("gemini/", "google/")):
         return [
             Requirement(
                 "GEMINI_API_KEY",
-                "tool mentor LLM",
+                reason,
                 alternatives=("GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS"),
             )
         ]
+    if model.startswith("anthropic/") or model.startswith("claude"):
+        return [Requirement("ANTHROPIC_API_KEY", reason)]
+    if model.startswith(("openai/", "gpt-")):
+        return [Requirement("OPENAI_API_KEY", reason)]
+    return []
+
+
+def _mentor_requirements(enabled: bool, model: str) -> list[Requirement]:
+    if not enabled:
+        return []
+    requirements = _text_model_requirements(model, "tool mentor LLM")
+    if requirements:
+        return requirements
     return [Requirement("OPENAI_API_KEY", "tool mentor LLM")]
 
 
@@ -132,6 +144,10 @@ def build_readiness_report(
         Requirement("ELEVENLABS_API_KEY", "voice user simulator TTS"),
         Requirement("DEEPGRAM_API_KEY", "voice user simulator transcription"),
         *_provider_requirements(provider),
+        *_text_model_requirements(
+            VOICE_USER_SIMULATOR_DECISION_MODEL,
+            "voice user simulator interruption and backchannel decisions",
+        ),
         *_mentor_requirements(tool_mentor, tool_mentor_model),
     ]
     if require_voice_ids:

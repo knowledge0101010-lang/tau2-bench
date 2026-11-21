@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from loguru import logger
 from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_exponential
 
 from tau2.edition.config import RetryPolicy
@@ -120,18 +121,25 @@ class EditionSession:
             if _current is not None:
                 raise RuntimeError("An edition session is already active")
             _current = self
-        self.audit_path.parent.mkdir(parents=True, exist_ok=True)
-        start = self._metadata_body()
-        start["event"] = "run_start"
-        self._append(start)
-        self.write_metadata(final=False)
+        try:
+            self.audit_path.parent.mkdir(parents=True, exist_ok=True)
+            start = self._metadata_body()
+            start["event"] = "run_start"
+            self._append(start)
+            self.write_metadata(final=False)
+        except BaseException:
+            # A half-started session must not stay active for the next run.
+            with _global_lock:
+                if _current is self:
+                    _current = None
+            raise
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         global _current
-        finished = _utc_now()
-        self._append(
-            {
+        try:
+            finished = _utc_now()
+            end = {
                 "event": "run_end",
                 "timestamp": finished,
                 "finished_at": finished,
@@ -142,11 +150,20 @@ class EditionSession:
                 "error_type": None if exc_type is None else exc_type.__name__,
                 "ok": exc_type is None,
             }
-        )
-        self.write_metadata(final=True)
-        with _global_lock:
-            if _current is self:
-                _current = None
+            try:
+                self._append(end)
+                self.write_metadata(final=True)
+            except Exception as write_error:
+                # Keep the run's own exception; only report the write failure.
+                if exc_type is None:
+                    raise
+                logger.warning(
+                    f"Enterprise audit write failed during exit: {write_error}"
+                )
+        finally:
+            with _global_lock:
+                if _current is self:
+                    _current = None
         return False
 
     def blocked_reason(self) -> Optional[str]:
@@ -318,11 +335,6 @@ def guard_llm_call(provider_call: Callable[..., Any], *args: Any, **kwargs: Any)
     if session is None:
         return provider_call(*args, **kwargs)
 
-    reason = session.blocked_reason()
-    if reason:
-        session.stopped_for_budget = True
-        raise BudgetExceeded(reason)
-
     inner = dict(kwargs)
     if session.retry is not None:
         inner["num_retries"] = 0
@@ -330,6 +342,12 @@ def guard_llm_call(provider_call: Callable[..., Any], *args: Any, **kwargs: Any)
     start = time.perf_counter()
 
     def attempt() -> Any:
+        # Every attempt, retries included, reads the shared budget again: other
+        # workers may have spent it while this one waited for its backoff.
+        reason = session.blocked_reason()
+        if reason:
+            session.stopped_for_budget = True
+            raise BudgetExceeded(reason)
         return provider_call(*args, **inner)
 
     try:
@@ -350,29 +368,45 @@ def guard_llm_call(provider_call: Callable[..., Any], *args: Any, **kwargs: Any)
     except BudgetExceeded:
         raise
     except Exception as exc:
-        session.record_call(
-            model=model if isinstance(model, str) else None,
-            ok=False,
-            error_type=type(exc).__name__,
-            latency_seconds=time.perf_counter() - start,
-            prompt_tokens=0,
-            completion_tokens=0,
-            total_tokens=0,
-            cost_usd=0.0,
-        )
+        try:
+            session.record_call(
+                model=model if isinstance(model, str) else None,
+                ok=False,
+                error_type=type(exc).__name__,
+                latency_seconds=time.perf_counter() - start,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cost_usd=0.0,
+            )
+        except Exception as audit_error:
+            logger.warning(f"Enterprise audit write failed: {audit_error}")
         raise
 
     prompt, completion_tokens, total = _usage_tokens(response)
     cost = response_cost(response)
-    session.record_call(
-        model=model if isinstance(model, str) else None,
-        ok=True,
-        error_type=None,
-        latency_seconds=time.perf_counter() - start,
-        prompt_tokens=prompt,
-        completion_tokens=completion_tokens,
-        total_tokens=total,
-        cost_usd=cost,
-    )
-    session.note_usage(total, cost)
+    budget_error: Optional[BudgetExceeded] = None
+    try:
+        # Count the spend before the audit write: a full disk must not let the
+        # same paid call be repeated with the budget still unchanged.
+        session.note_usage(total, cost)
+    except BudgetExceeded as exc:
+        budget_error = exc
+    try:
+        session.record_call(
+            model=model if isinstance(model, str) else None,
+            ok=True,
+            error_type=None,
+            latency_seconds=time.perf_counter() - start,
+            prompt_tokens=prompt,
+            completion_tokens=completion_tokens,
+            total_tokens=total,
+            cost_usd=cost,
+        )
+    except Exception as audit_error:
+        if budget_error is None:
+            raise
+        logger.warning(f"Enterprise audit write failed: {audit_error}")
+    if budget_error is not None:
+        raise budget_error
     return response

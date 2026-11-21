@@ -62,10 +62,25 @@ class EditionPlan:
 
 
 def flag_on_cli(argv: list[str], *flags: str) -> bool:
-    """True when any flag was passed explicitly (``--flag`` or ``--flag=value``)."""
+    """True when any flag was passed explicitly.
+
+    Accepts every form argparse accepts for these flags: ``--flag value``,
+    ``--flag=value``, an unambiguous long-option prefix (``--max-concurr``),
+    and a short option with the value attached (``-dairline``).
+    """
     for arg in argv:
+        name = arg.split("=", 1)[0]
         for flag in flags:
             if arg == flag or arg.startswith(flag + "="):
+                return True
+            if flag.startswith("--") and len(name) > 2 and flag.startswith(name):
+                return True
+            if (
+                len(flag) == 2
+                and flag.startswith("-")
+                and len(name) > 2
+                and name.startswith(flag)
+            ):
                 return True
     return False
 
@@ -124,7 +139,10 @@ def _apply_consumer(args, argv: list[str]) -> None:
     if not flag_on_cli(argv, "--max-errors"):
         args.max_errors = CONSUMER_MAX_ERRORS
     if not flag_on_cli(argv, "--save-to"):
-        args.save_to = "consumer-smoke"
+        # A fresh directory per smoke: a fixed name makes the next run find the
+        # previous checkpoint and offer to resume instead of checking the setup.
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        args.save_to = f"consumer-smoke-{stamp}"
 
 
 def _effective_models(args, profile: EnterpriseProfile) -> dict[str, str]:

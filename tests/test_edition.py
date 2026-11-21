@@ -26,6 +26,7 @@ from tau2.edition.config import RetryPolicy, load_enterprise_profile, validate_m
 from tau2.edition.session import (
     BudgetExceeded,
     EditionSession,
+    current_session,
     guard_llm_call,
     resolve_routed_model,
 )
@@ -63,7 +64,8 @@ def test_no_profile_keeps_standard_defaults():
 
 
 def test_consumer_smoke_preset_and_missing_key(monkeypatch):
-    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    # An empty value isolates the check from a developer .env file.
+    monkeypatch.setenv("XAI_API_KEY", "")
     args = _parser().parse_args(["--profile", "consumer"])
     with pytest.raises(SystemExit) as caught:
         prepare_edition(args, ["--profile", "consumer"])
@@ -78,6 +80,51 @@ def test_consumer_smoke_preset_and_missing_key(monkeypatch):
     assert args.max_concurrency == 1
     assert args.agent_llm == "xai/grok-4.7"
     assert "groq/" not in args.agent_llm
+
+
+def test_consumer_smoke_keeps_an_explicit_save_dir_and_defaults_to_a_fresh_one(
+    monkeypatch,
+):
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+
+    argv = ["--profile", "consumer"]
+    args = _parser().parse_args(argv)
+    prepare_edition(args, argv)
+    assert args.save_to.startswith("consumer-smoke-")
+    assert args.save_to != "consumer-smoke"
+
+    argv = ["--profile", "consumer", "--save-to", "mine"]
+    args = _parser().parse_args(argv)
+    prepare_edition(args, argv)
+    assert args.save_to == "mine"
+
+
+def test_profile_defaults_yield_to_abbreviated_and_attached_flags(
+    tmp_path, monkeypatch
+):
+    """argparse accepts `--max-concurr 1` and `-dairline`; the profile must too."""
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    config_path = tmp_path / "profile.yaml"
+    config_path.write_text(
+        "concurrency:\n  max_concurrency: 8\n",
+        encoding="utf-8",
+    )
+    argv = [
+        "--profile",
+        "enterprise",
+        "--enterprise-config",
+        str(config_path),
+        "--max-concurr",
+        "1",
+    ]
+    args = _parser().parse_args(argv)
+    prepare_edition(args, argv)
+    assert args.max_concurrency == 1
+
+    argv = ["--profile", "consumer", "-dairline"]
+    args = _parser().parse_args(argv)
+    prepare_edition(args, argv)
+    assert args.domain == "airline"
 
 
 def test_consumer_respects_explicit_flags(monkeypatch):
@@ -323,6 +370,82 @@ def test_overspend_stops_at_the_call_that_crossed_the_cap(tmp_path, monkeypatch)
             guard_llm_call(provider, model="xai/grok-4.7")
         assert session.stopped_for_budget is True
         assert session.blocked_reason() == "enterprise budget already exhausted"
+
+
+def test_every_retry_attempt_reads_the_latest_budget(tmp_path, monkeypatch):
+    """Another worker can spend the budget while this one waits for its backoff."""
+    monkeypatch.setattr("tau2.edition.session.response_cost", lambda response: 0.0)
+    session = EditionSession(
+        seed=None,
+        models={},
+        max_concurrency=2,
+        max_cost_usd=None,
+        max_tokens=10,
+        retry=RetryPolicy(
+            max_retries=3,
+            min_wait_seconds=0,
+            max_wait_seconds=0,
+            multiplier=1,
+        ),
+        audit_path=tmp_path / "audit.jsonl",
+        metadata_path=tmp_path / "meta.json",
+    )
+    calls = {"n": 0}
+
+    def provider(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            session.note_usage(10, 0.0)  # the other worker spends the whole cap
+            raise RuntimeError("temporary")
+        return _fake_response(total_tokens=1)
+
+    with session:
+        with pytest.raises(BudgetExceeded):
+            guard_llm_call(provider, model="xai/grok-4.7")
+    assert calls["n"] == 1
+
+
+def test_usage_is_counted_even_when_the_audit_write_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr("tau2.edition.session.response_cost", lambda response: 0.0)
+    session = _session_with_caps(tmp_path, max_tokens=4)
+
+    def broke(**payload):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(session, "record_call", broke)
+    with session:
+        with pytest.raises(BudgetExceeded):
+            guard_llm_call(
+                lambda **kwargs: _fake_response(total_tokens=5),
+                model="xai/grok-4.7",
+            )
+    assert session.tokens == 5
+
+
+def test_a_failed_entry_does_not_leave_the_session_active(tmp_path, monkeypatch):
+    session = _session_with_caps(tmp_path / "broken", max_tokens=10)
+
+    def broke(payload):
+        raise OSError("no disk")
+
+    monkeypatch.setattr(session, "_append", broke)
+    with pytest.raises(OSError):
+        with session:
+            pass
+    assert current_session() is None
+
+
+def test_exit_keeps_the_run_exception_when_the_final_write_fails(tmp_path, monkeypatch):
+    session = _session_with_caps(tmp_path / "exit", max_tokens=10)
+
+    def broke(payload):
+        raise OSError("disk full")
+
+    with pytest.raises(BudgetExceeded, match="cap"):
+        with session:
+            monkeypatch.setattr(session, "_append", broke)
+            raise BudgetExceeded("cap")
+    assert current_session() is None
 
 
 def test_cost_cap_stops_the_next_call(tmp_path, monkeypatch):

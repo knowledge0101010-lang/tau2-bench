@@ -817,7 +817,9 @@ def run_tasks(
             simulation_results.simulations.append(result)
     except BudgetExceeded:
         shutdown_event.set()
-        executor.shutdown(wait=False, cancel_futures=True)
+        # Wait for workers already in flight: their next call sees the exhausted
+        # budget and stops, and their usage still lands in the open session.
+        executor.shutdown(wait=True, cancel_futures=True)
         ConsoleDisplay.console.print(
             "\n[bold red]Enterprise budget reached. Stopping the run.[/bold red]"
         )
