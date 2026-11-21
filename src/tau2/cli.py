@@ -912,17 +912,18 @@ def main():
             )
 
         def _execute():
-            try:
-                return run_domain(config)
-            except BudgetExceeded as exc:
-                print(str(exc))
-                raise SystemExit(2) from exc
+            return run_domain(config)
 
-        if edition.session is not None:
-            with edition.session:
+        try:
+            if edition.session is not None:
+                with edition.session:
+                    result = _execute()
+            else:
                 result = _execute()
-        else:
-            result = _execute()
+        except BudgetExceeded as exc:
+            # Outside the session: the audit run_end keeps the real cause.
+            print(str(exc))
+            raise SystemExit(2) from exc
         if edition.profile == "consumer":
             print(consumer_summary(result))
         return result

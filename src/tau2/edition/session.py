@@ -150,42 +150,59 @@ class EditionSession:
         return False
 
     def blocked_reason(self) -> Optional[str]:
+        """Why the next model call cannot run, or ``None`` when it fits.
+
+        Reaching the cap is enough to block: the remaining budget is zero.
+        """
         if self.stopped_for_budget:
             return "enterprise budget already exhausted"
-        if (
-            self.max_tokens is not None
-            and self.tokens >= self.max_tokens
-            and self.tokens > 0
-        ):
-            return f"token budget exhausted ({self.tokens} >= {self.max_tokens})"
-        if (
-            self.max_cost_usd is not None
-            and self.cost_usd >= self.max_cost_usd
-            and self.cost_usd > 0
-        ):
-            return (
-                "cost budget exhausted "
-                f"({self.cost_usd:.6f} >= {self.max_cost_usd:.6f} USD)"
-            )
-        return None
+        return self._cap_reason(strict=False)
 
     def note_usage(self, added_tokens: int, added_cost: float) -> None:
         with self._lock:
             self.tokens += max(added_tokens, 0)
             self.cost_usd += max(added_cost, 0.0)
-            reason = self._over_cap_reason()
+            reason = self._cap_reason(strict=True)
             if reason:
                 self.stopped_for_budget = True
                 raise BudgetExceeded(reason)
 
-    def _over_cap_reason(self) -> Optional[str]:
-        if self.max_tokens is not None and self.tokens > self.max_tokens:
-            return f"token budget exceeded ({self.tokens} > {self.max_tokens})"
-        if self.max_cost_usd is not None and self.cost_usd > self.max_cost_usd:
-            return (
-                "cost budget exceeded "
-                f"({self.cost_usd:.6f} > {self.max_cost_usd:.6f} USD)"
+    def _cap_reason(self, *, strict: bool) -> Optional[str]:
+        """The cap this run has used up, or ``None``.
+
+        ``strict=False`` compares ``spent >= cap``: the state before a call,
+        where the cap is reached and nothing more fits in the budget.
+        ``strict=True`` compares ``spent > cap``: a call that just spent past
+        the cap, which stops the run where it happened. Both comparisons live
+        here so the two boundaries cannot drift apart, and a cap of ``0``
+        blocks the first call instead of letting one call through.
+        """
+        if self.max_tokens is not None:
+            over = (
+                self.tokens > self.max_tokens
+                if strict
+                else self.tokens >= self.max_tokens
             )
+            if over:
+                if strict:
+                    return f"token budget exceeded ({self.tokens} > {self.max_tokens})"
+                return f"token budget exhausted ({self.tokens} >= {self.max_tokens})"
+        if self.max_cost_usd is not None:
+            over = (
+                self.cost_usd > self.max_cost_usd
+                if strict
+                else self.cost_usd >= self.max_cost_usd
+            )
+            if over:
+                if strict:
+                    return (
+                        "cost budget exceeded "
+                        f"({self.cost_usd:.6f} > {self.max_cost_usd:.6f} USD)"
+                    )
+                return (
+                    "cost budget exhausted "
+                    f"({self.cost_usd:.6f} >= {self.max_cost_usd:.6f} USD)"
+                )
         return None
 
     def public_metadata(self) -> dict[str, Any]:

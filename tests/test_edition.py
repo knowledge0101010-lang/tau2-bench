@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -258,6 +259,72 @@ def test_budget_hard_stop_and_audit_omit_secrets(tmp_path, monkeypatch):
     }
 
 
+def _session_with_caps(path, **caps):
+    path.mkdir(parents=True, exist_ok=True)
+    return EditionSession(
+        seed=None,
+        models={},
+        max_concurrency=None,
+        max_cost_usd=caps.get("max_cost_usd"),
+        max_tokens=caps.get("max_tokens"),
+        retry=None,
+        audit_path=path / "audit.jsonl",
+        metadata_path=path / "meta.json",
+        git_sha="deadbeef",
+    )
+
+
+@pytest.mark.parametrize("caps", [{"max_tokens": 0}, {"max_cost_usd": 0.0}])
+def test_zero_cap_blocks_the_first_call(tmp_path, caps):
+    """A cap of 0 is a hard stop, not one free call."""
+    calls = {"n": 0}
+
+    def provider(**kwargs):
+        calls["n"] += 1
+        return _fake_response(total_tokens=5)
+
+    session = _session_with_caps(tmp_path / "zero", **caps)
+    with session:
+        with pytest.raises(BudgetExceeded):
+            guard_llm_call(provider, model="xai/grok-4.7", api_key="k")
+    assert calls["n"] == 0
+    assert session.stopped_for_budget is True
+
+
+def test_exact_cap_spends_nothing_more_and_is_not_a_failure(tmp_path, monkeypatch):
+    """Landing exactly on the cap does not fail the run; the next call is refused."""
+    monkeypatch.setattr("tau2.edition.session.response_cost", lambda response: 0.0)
+    calls = {"n": 0}
+
+    def provider(**kwargs):
+        calls["n"] += 1
+        return _fake_response(total_tokens=4)
+
+    session = _session_with_caps(tmp_path, max_tokens=4)
+    with session:
+        guard_llm_call(provider, model="xai/grok-4.7")
+        assert session.tokens == 4
+        assert session.stopped_for_budget is False
+        assert session.blocked_reason() == "token budget exhausted (4 >= 4)"
+        with pytest.raises(BudgetExceeded):
+            guard_llm_call(provider, model="xai/grok-4.7")
+    assert calls["n"] == 1
+
+
+def test_overspend_stops_at_the_call_that_crossed_the_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr("tau2.edition.session.response_cost", lambda response: 0.0)
+
+    def provider(**kwargs):
+        return _fake_response(total_tokens=5)
+
+    session = _session_with_caps(tmp_path, max_tokens=4)
+    with session:
+        with pytest.raises(BudgetExceeded, match="token budget exceeded \\(5 > 4\\)"):
+            guard_llm_call(provider, model="xai/grok-4.7")
+        assert session.stopped_for_budget is True
+        assert session.blocked_reason() == "enterprise budget already exhausted"
+
+
 def test_cost_cap_stops_the_next_call(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "tau2.edition.session.response_cost",
@@ -338,6 +405,59 @@ def test_budget_exceeded_is_not_retried_as_a_task():
             console_display=False,
         )
     assert calls["n"] == 1
+
+
+def test_cli_budget_stop_exits_2_and_audits_the_real_cause(tmp_path, monkeypatch):
+    """The audit run_end names BudgetExceeded, not the SystemExit the CLI raises."""
+    import tau2.cli as cli
+
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(
+        "\n".join(
+            [
+                "budget:",
+                "  max_tokens: 4",
+                f"audit_log: {tmp_path / 'audit.jsonl'}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_run_domain(config):
+        raise BudgetExceeded("token budget exceeded (5 > 4)")
+
+    monkeypatch.setattr(cli, "run_domain", fake_run_domain)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tau2",
+            "run",
+            "--profile",
+            "enterprise",
+            "--enterprise-config",
+            str(profile),
+            "--domain",
+            "mock",
+            "--num-tasks",
+            "1",
+            "--save-to",
+            str(tmp_path / "run"),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        cli.main()
+
+    assert caught.value.code == 2
+    lines = [
+        json.loads(line)
+        for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    run_end = [line for line in lines if line["event"] == "run_end"][0]
+    assert run_end["error_type"] == "BudgetExceeded"
+    assert run_end["stopped_for_budget"] is True
+    assert run_end["ok"] is False
 
 
 def test_enterprise_config_is_required():

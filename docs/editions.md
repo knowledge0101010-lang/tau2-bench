@@ -10,7 +10,7 @@ Omit `--profile` and `tau2 run` keeps the current defaults (`xai/grok-4.7` for t
 tau2 run --profile consumer
 ```
 
-`--profile enterprise --enterprise-config profile.yaml` reads a YAML file for per-role model routing, concurrency, a hard cost/token stop, retry backoff on each model call, and a secret-free JSONL audit log. The log and `edition-metadata.json` record the seed, model ids, and git sha. See [docs/examples/enterprise.profile.yaml](examples/enterprise.profile.yaml).
+`--profile enterprise --enterprise-config profile.yaml` reads a YAML file for per-role model routing, concurrency, a hard cost/token stop, retry backoff on each model call, and a secret-free JSONL audit log. Reaching a cap blocks the next call (`0` blocks the first one); a call that spends past the cap stops the run where it happened. The log and `edition-metadata.json` record the seed, model ids, and git sha. See [docs/examples/enterprise.profile.yaml](examples/enterprise.profile.yaml).
 
 ```bash
 tau2 run --profile enterprise --enterprise-config docs/examples/enterprise.profile.yaml \
@@ -29,7 +29,7 @@ An explicit CLI flag (`--agent-llm`, `--user-llm`, `--review-model`, `--tool-men
 tau2 run --profile consumer
 ```
 
-`--profile enterprise --enterprise-config profile.yaml`은 YAML로 역할별 모델을 나누고, 동시 실행 수, 비용·토큰 한도(넘으면 실행을 멈춤), 모델 호출마다 재시도/백오프, 비밀이 없는 JSONL 감사 기록을 켭니다. 시드, 모델 id, git sha는 `edition-metadata.json`과 로그에 남습니다. 예시는 [docs/examples/enterprise.profile.yaml](examples/enterprise.profile.yaml)입니다.
+`--profile enterprise --enterprise-config profile.yaml`은 YAML로 역할별 모델을 나누고, 동시 실행 수, 비용·토큰 한도(한도에 닿으면 다음 호출을 막고, 넘긴 호출은 그 자리에서 실행을 멈춤), 모델 호출마다 재시도/백오프, 비밀이 없는 JSONL 감사 기록을 켭니다. 시드, 모델 id, git sha는 `edition-metadata.json`과 로그에 남습니다. 예시는 [docs/examples/enterprise.profile.yaml](examples/enterprise.profile.yaml)입니다.
 
 ```bash
 tau2 run --profile enterprise --enterprise-config docs/examples/enterprise.profile.yaml \
